@@ -152,7 +152,7 @@ curl -X GET "http://localhost:8080/internal/task"
 ```
 ## Ожидаемый ответ:
 ``` json
-
+}
   "id": 1,
   "arg1": 2,
   "arg2": 2,
