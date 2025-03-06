@@ -1,10 +1,12 @@
 package calculator
 
 import (
+	models "Calc_2GO/Models"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -15,27 +17,29 @@ var (
 	ErrInvalidCharacter  = errors.New("invalid character")
 )
 
-func Calc(expression string) (float64, error) {
+// CalcToTasks разбивает входную строку на токены, переводит их в постфиксную нотацию
+// и создает массив Task, где каждый Task содержит операцию (Arg1 op Arg2) с общим ID.
+func CalcToTasks(id int, expression string) ([]models.Task, error) {
 	if expression == "" {
-		return 0, ErrInvalidExpression
+		return nil, ErrInvalidExpression
 	}
 
 	tokens, err := tokenize(expression)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	postfix, err := infixToPostfix(tokens)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	result, err := evaluatePostfix(postfix)
+	tasks, err := evaluatePostfixToTasks(id, postfix)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	return result, nil
+	return tasks, nil
 }
 
 func tokenize(expr string) ([]string, error) {
@@ -46,10 +50,12 @@ func tokenize(expr string) ([]string, error) {
 		if char == ' ' {
 			continue
 		} else if char == '+' || char == '-' || char == '*' || char == '/' || char == '(' || char == ')' {
+			// Добавляем накопленное число в токены
 			if currentToken.Len() > 0 {
 				tokens = append(tokens, currentToken.String())
 				currentToken.Reset()
 			}
+			// Обрабатываем унарный минус
 			if char == '-' && (i == 0 || expr[i-1] == '(') {
 				currentToken.WriteRune(char)
 			} else {
@@ -103,48 +109,67 @@ func infixToPostfix(tokens []string) ([]string, error) {
 		output = append(output, operators[len(operators)-1])
 		operators = operators[:len(operators)-1]
 	}
+
 	return output, nil
 }
 
-func evaluatePostfix(postfix []string) (float64, error) {
+func evaluatePostfixToTasks(id int, postfix []string) ([]models.Task, error) {
 	var stack []float64
+	var tasks []models.Task
 
 	for _, token := range postfix {
 		if isNumber(token) {
 			num, err := strconv.ParseFloat(token, 64)
 			if err != nil {
-				return 0, ErrInvalidToken
+				return nil, ErrInvalidToken
 			}
 			stack = append(stack, num)
 		} else if isOperator(token) {
 			if len(stack) < 2 {
-				return 0, ErrInvalidExpression
+				return nil, ErrInvalidExpression
 			}
 			b := stack[len(stack)-1]
 			a := stack[len(stack)-2]
 			stack = stack[:len(stack)-2]
+
+			// Формируем задачу
+			t := models.Task{
+				ID:            id,
+				Arg1:          a,
+				Arg2:          b,
+				Operation:     token,
+				OperationTime: time.Second,
+			}
+
+			var result float64
 			switch token {
 			case "+":
-				stack = append(stack, a+b)
+				result = a + b
 			case "-":
-				stack = append(stack, a-b)
+				result = a - b
 			case "*":
-				stack = append(stack, a*b)
+				result = a * b
 			case "/":
 				if b == 0 {
-					return 0, ErrDivisionByZero
+					return nil, ErrDivisionByZero
 				}
-				stack = append(stack, a/b)
+				result = a / b
 			}
+
+			tasks = append(tasks, t)
+			// Возвращаем результат обратно в стек, чтобы продолжать "собирать" выражение
+			stack = append(stack, result)
 		} else {
-			return 0, fmt.Errorf("%w: %s", ErrInvalidToken, token)
+			return nil, fmt.Errorf("%w: %s", ErrInvalidToken, token)
 		}
 	}
 
+	// По итогу в стеке должен остаться один элемент — итоговый результат
 	if len(stack) != 1 {
-		return 0, ErrInvalidExpression
+		return nil, ErrInvalidExpression
 	}
-	return stack[0], nil
+
+	return tasks, nil
 }
 
 func isNumber(token string) bool {

@@ -1,53 +1,58 @@
 package orchestrator
 
 import (
+	models "Calc_2GO/Models"
+	"Calc_2GO/Pkg/calculator"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 type Orchestrator struct {
 	mu          sync.Mutex
-	expressions map[string]*Expression
-	tasks       []Task
-	results     map[string]float64
+	expressions map[int]*Expression
+	tasks       []models.Task
+	results     map[int]float64
 }
 
 type Expression struct {
-	ID     string  `json:"id"`
+	ID     int     `json:"id"`
 	Status string  `json:"status"`
 	Result float64 `json:"result"`
 }
 
-type Task struct {
-	ID            string        `json:"id"`
-	Arg1          float64       `json:"arg1"`
-	Arg2          float64       `json:"arg2"`
-	Operation     string        `json:"operation"`
-	OperationTime time.Duration `json:"operation_time"`
-}
-
 func NewOrchestrator() *Orchestrator {
 	return &Orchestrator{
-		expressions: make(map[string]*Expression),
-		tasks:       []Task{},
-		results:     make(map[string]float64),
+		expressions: make(map[int]*Expression),
+		tasks:       []models.Task{},
+		results:     make(map[int]float64),
 	}
 }
 
-func (o *Orchestrator) AddExpression(expr string) (string, error) {
+func (o *Orchestrator) AddExpression(expr string) (int, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	id := "1"
+	id := len(o.expressions) + 1
+	expression := &Expression{ID: id, Status: "pending"}
+	o.expressions[id] = expression
+
+	tasks, err := calculator.CalcToTasks(id, expr)
+	if err != nil {
+		log.Printf("❌ Ошибка при разборе выражения: %v", err)
+		return 0, fmt.Errorf("ошибка при разборе выражения: %v", err)
+	}
+
+	o.tasks = append(o.tasks, tasks...)
+	log.Printf("✅ Добавлено выражение: %s", expr)
 	return id, nil
 }
 
-func (o *Orchestrator) GetExpression(id string) (*Expression, bool) {
+func (o *Orchestrator) GetExpression(id int) (*Expression, bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	expr, exists := o.expressions[id]
@@ -55,24 +60,30 @@ func (o *Orchestrator) GetExpression(id string) (*Expression, bool) {
 }
 
 func (o *Orchestrator) GetAllExpressions() []*Expression {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	result := make([]*Expression, 0, len(o.expressions))
 
-	expressions := []*Expression{
-		{ID: "1", Status: "pending", Result: 1.0},
-		{ID: "2", Status: "completed", Result: 42.0},
+	for _, expr := range o.expressions {
+		result = append(result, expr)
 	}
 
-	return expressions
+	return result
 }
 
-func (o *Orchestrator) GetNextTask() (*Task, bool) {
+func (o *Orchestrator) GetNextTask() (*models.Task, bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	log.Println("❌ Нет задач, готовых к выполнению")
-	return nil, false
+	if len(o.tasks) == 0 {
+		log.Println("❌ Нет задач, готовых к выполнению")
+		return nil, false
+	}
+
+	task := o.tasks[0]
+	o.tasks = o.tasks[1:]
+	log.Printf("✅ Задача id %d передана агенту. Выражение: %v", task.ID, task)
+	return &task, true
 }
+
 func (o *Orchestrator) HandleGetExpressions(w http.ResponseWriter, r *http.Request) {
 	expressions := o.GetAllExpressions()
 	w.Header().Set("Content-Type", "application/json")
@@ -80,7 +91,14 @@ func (o *Orchestrator) HandleGetExpressions(w http.ResponseWriter, r *http.Reque
 }
 
 func (o *Orchestrator) HandleGetExpressionByID(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimPrefix(r.URL.Path, "/api/v1/expressions/")
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/v1/expressions/")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "❌ Неверный формат ID", http.StatusBadRequest)
+		return
+	}
+
 	expr, exists := o.GetExpression(id)
 	if !exists {
 		http.Error(w, "❌ Выражение не найдено", http.StatusNotFound)
@@ -107,9 +125,11 @@ func (o *Orchestrator) HandleCalculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	idStr := strconv.Itoa(id)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"id": id})
+	json.NewEncoder(w).Encode(map[string]string{"id": idStr})
 }
 
 func (o *Orchestrator) HandleTask(w http.ResponseWriter, r *http.Request) {
@@ -127,13 +147,15 @@ func (o *Orchestrator) HandleTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	o.expressions[task.ID].Status = "in_progress"
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(task)
 }
 
 func (o *Orchestrator) HandleTaskResult(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		ID     string  `json:"id"`
+		ID     int     `json:"id"`
 		Result float64 `json:"result"`
 	}
 
@@ -147,28 +169,24 @@ func (o *Orchestrator) HandleTaskResult(w http.ResponseWriter, r *http.Request) 
 	defer o.mu.Unlock()
 
 	o.results[request.ID] = request.Result
-	log.Printf("✅ Результат задачи %s записан: %f", request.ID, request.Result)
+	log.Printf("✅ Результат задачи %d записан: %f", request.ID, request.Result)
 
-	for _, expr := range o.expressions {
-		if expr.Status == "pending" || expr.Status == "in_progress" {
-			allTasksCompleted := true
-			for _, task := range o.tasks {
-				if strings.HasPrefix(task.ID, expr.ID) {
-					allTasksCompleted = false
-					break
-				}
-			}
-
-			if allTasksCompleted {
-				expr.Status = "completed"
-				expr.Result = o.results[expr.ID+"-final"]
-				log.Printf("✅ Выражение %s завершено, результат: %f", expr.ID, expr.Result)
-			}
+	isTaskExist := false
+	for _, task := range o.tasks {
+		if task.ID == request.ID {
+			isTaskExist = true
+			break
 		}
+	}
+
+	if !isTaskExist {
+		o.expressions[request.ID].Result = o.results[request.ID]
+		o.expressions[request.ID].Status = "done"
 	}
 
 	w.WriteHeader(http.StatusOK)
 }
+
 func (o *Orchestrator) StartServer() {
 	fmt.Println("🚀 Оркестратор запущен на порту 8080")
 

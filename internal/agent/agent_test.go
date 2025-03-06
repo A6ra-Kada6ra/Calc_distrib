@@ -1,7 +1,8 @@
 package agent_test
 
 import (
-	"Calc_distrib/internal/agent"
+	models "Calc_2GO/Models"
+	"Calc_2GO/internal/agent"
 	"encoding/json" // Добавлен импорт
 	"fmt"
 	"net/http"
@@ -13,17 +14,17 @@ import (
 func TestAgent(t *testing.T) {
 	tests := []struct {
 		name       string
-		task       agent.Task
+		task       models.Task
 		wantResult float64
 		wantErr    bool
 		errMsg     string
 	}{
-		{"Сложение", agent.Task{ID: "task1", Arg1: 2, Arg2: 2, Operation: "+", OperationTime: 1 * time.Second}, 4, false, ""},
-		{"Вычитание", agent.Task{ID: "task2", Arg1: 5, Arg2: 3, Operation: "-", OperationTime: 1 * time.Second}, 2, false, ""},
-		{"Умножение", agent.Task{ID: "task3", Arg1: 3, Arg2: 3, Operation: "*", OperationTime: 1 * time.Second}, 9, false, ""},
-		{"Деление", agent.Task{ID: "task4", Arg1: 10, Arg2: 2, Operation: "/", OperationTime: 1 * time.Second}, 5, false, ""},
-		{"Деление на ноль", agent.Task{ID: "task5", Arg1: 10, Arg2: 0, Operation: "/", OperationTime: 1 * time.Second}, 0, true, "division by zero"},
-		{"Неизвестная операция", agent.Task{ID: "task6", Arg1: 2, Arg2: 2, Operation: "^", OperationTime: 1 * time.Second}, 0, true, "unknown operation"},
+		{"Сложение", models.Task{ID: 1, Arg1: 2, Arg2: 2, Operation: "+", OperationTime: 1 * time.Second}, 4, false, ""},
+		{"Вычитание", models.Task{ID: 2, Arg1: 5, Arg2: 3, Operation: "-", OperationTime: 1 * time.Second}, 2, false, ""},
+		{"Умножение", models.Task{ID: 3, Arg1: 3, Arg2: 3, Operation: "*", OperationTime: 1 * time.Second}, 9, false, ""},
+		{"Деление", models.Task{ID: 4, Arg1: 10, Arg2: 2, Operation: "/", OperationTime: 1 * time.Second}, 5, false, ""},
+		{"Деление на ноль", models.Task{ID: 5, Arg1: 10, Arg2: 0, Operation: "/", OperationTime: 1 * time.Second}, 0, true, "деление на ноль"},
+		{"Неизвестная операция", models.Task{ID: 6, Arg1: 2, Arg2: 2, Operation: "^", OperationTime: 1 * time.Second}, 0, true, "неизвестная операция: ^"},
 	}
 
 	for _, tt := range tests {
@@ -40,7 +41,7 @@ func TestAgent(t *testing.T) {
 			defer ts.Close()
 
 			// Создаем агента
-			ag := agent.NewAgent(ts.URL, 1, 1*time.Second, 1*time.Second, 1*time.Second, 1*time.Second)
+			ag := agent.NewAgent(ts.URL, 2)
 
 			// Выполняем задачу
 			result, err := ag.ExecuteTask(&tt.task)
