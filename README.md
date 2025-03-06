@@ -278,7 +278,7 @@ export COMPUTING_POWER=2
 ```bash
 go test ./...
 ```
-### Пример отображения диаграммы:
+### диаграмма:
 
 ```mermaid
 sequenceDiagram
