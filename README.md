@@ -10,28 +10,28 @@ A brief description of what this project does and who it's for
 2. **Агент** — вычислитель, который выполняет задачи, полученные от оркестратора, и возвращает результаты.
 
 ## Структура проекта
-Calc_2GO/
-├── cmd/
-│ ├── agent/
-│ │ └── main.go # Точка входа для запуска агента
-│ ├── orchestrator/
-│ │ └── main.go # Точка входа для запуска оркестратора
-├── internal/
-│ ├── agent/
-│ │ ├── agent.go # Логика агента
-│ │ └── agent_test.go # Тесты для агента
-├ └── calculator/
-│   ├── orchestrator.go        # Логика оркестратора
-│   └── orchestrator_test.go   # Тесты для оркестратора
-├── models/
-│ └── models.go # Модели данных (задачи и выражения)
-├──  pkg/
-│   └── calculator/
-│       ├── calculator.go      # Логика калькулятора (разбор выражений)
-│       └── calculator_test.go # Тесты для калькулятора
-├
-├── go.mod # Файл модуля Go
-└── README.md # Документация проекта
+* Calc_2GO/
+* ├── cmd/
+* │   ├── agent/
+* │   │   └── main.go            # Точка входа для запуска агента
+* │   ├── orchestrator/
+* │   │   └── main.go            # Точка входа для запуска оркестратора
+* ├── internal/
+* │   ├── agent/
+* │   │   ├── agent.go           # Логика агента
+* │   │   └── agent_test.go      # Тесты для агента
+* ├── calculator/
+* │   ├── orchestrator.go        # Логика оркестратора
+* │   └── orchestrator_test.go   # Тесты для оркестратора
+* ├── models/
+* │   └── models.go              # Модели данных (задачи и выражения)
+* ├── pkg/
+* │   └── calculator/
+* │       ├── calculator.go      # Логика калькулятора (разбор выражений)
+* │       └── calculator_test.go # Тесты для калькулятора
+* ├── .gitignore                 # Игнорируемые файлы для Git
+* ├── go.mod                     # Файл модуля Go
+* └── README.md                  # Документация проекта
 
 
 ## Запуск проекта
@@ -300,4 +300,4 @@ sequenceDiagram
     Пользователь->>Оркестратор: GET /api/v1/expressions/1
     Оркестратор->>Пользователь: { "id": 1, "status": "done", "result": 8 }
     
-    ```
+```
